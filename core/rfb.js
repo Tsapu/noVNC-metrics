@@ -82,6 +82,7 @@ export default class RFB extends EventTargetMixin {
         super();
 
         this._target = target;
+        this.lastUpdateTime = Date.now();
 
         if (typeof urlOrChannel === "string") {
             this._url = urlOrChannel;
@@ -274,7 +275,7 @@ export default class RFB extends EventTargetMixin {
             this._showDotCursor = options.showDotCursor;
         }
 
-        this._qualityLevel = 6;
+        this._qualityLevel = 7;
         this._compressionLevel = 2;
     }
 
@@ -2294,8 +2295,17 @@ export default class RFB extends EventTargetMixin {
         }
 
         let first, ret;
+
         switch (msgType) {
             case 0:  // FramebufferUpdate
+
+                let currentTime = Date.now();
+                let timeDifference = currentTime - this.lastUpdateTime; // in milliseconds
+                let frameRate = timeDifference; // frames per milisecond
+                console.log(`Updates per second: ${Math.round(frameRate, 4)} updates per milisecond`);
+
+                this.lastUpdateTime = currentTime;
+
                 ret = this._framebufferUpdate();
                 if (ret && !this._enabledContinuousUpdates) {
                     RFB.messages.fbUpdateRequest(this._sock, true, 0, 0,
