@@ -103,7 +103,6 @@ export default class RFB extends EventTargetMixin {
         super();
 
         this._target = target;
-        this.lastUpdateTime = Date.now();
 
         if (typeof urlOrChannel === "string") {
             this._url = urlOrChannel;
@@ -111,6 +110,21 @@ export default class RFB extends EventTargetMixin {
             this._url = null;
             this._rawChannel = urlOrChannel;
         }
+
+        this.lastUpdateTime = Date.now();
+        this.updateCount = 0;
+        this.averageUpdateTime = 0;
+        this.totalTime = 0;
+
+        // setInterval(() => {
+        //     if (this.totalTime > 0) {
+        //         let averageFrameRate = this.averageUpdateTime / (this.totalTime / 5000);
+        //         console.log(`Average frame update rate (last 5 sec): ${averageFrameRate.toPrecision(4)} fps`);
+        //         this.averageUpdateTime = 0;
+        //         this.totalTime = 0;
+        //     }
+        // }, 5000);
+        
 
         // Connection details
         options = options || {};
@@ -298,7 +312,7 @@ export default class RFB extends EventTargetMixin {
             this._showDotCursor = options.showDotCursor;
         }
 
-        this._qualityLevel = 7;
+        this._qualityLevel = 6;
         this._compressionLevel = 2;
     }
 
@@ -2444,17 +2458,24 @@ export default class RFB extends EventTargetMixin {
         }
 
         let first, ret;
-
         switch (msgType) {
             case 0:  // FramebufferUpdate
+                this.updateCount++;
 
-                let currentTime = Date.now();
-                let timeDifference = currentTime - this.lastUpdateTime; // in milliseconds
-                let frameRate = timeDifference; // frames per milisecond
-                console.log(`Updates per second: ${Math.round(frameRate, 4)} updates per milisecond`);
+                if (this.updateCount >= 100) {
+                    let currentTime = Date.now();
+                    let timeDifference = currentTime - this.lastUpdateTime; // in milliseconds
+                    this.lastUpdateTime = currentTime;
 
-                this.lastUpdateTime = currentTime;
+                    let frameRate = this.updateCount / (timeDifference / 1000); // frames per second
 
+                    console.log(`Frame update rate: ${frameRate.toPrecision(4)} fps`);
+
+                    this.updateCount = 0;
+
+                    this.averageUpdateTime += frameRate;
+                    this.totalTime += timeDifference;
+                }
                 ret = this._framebufferUpdate();
                 if (ret && !this._enabledContinuousUpdates) {
                     RFB.messages.fbUpdateRequest(this._sock, true, 0, 0,
