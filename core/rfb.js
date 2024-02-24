@@ -85,6 +85,9 @@ const extendedClipboardActionPeek    = 1 << 26;
 const extendedClipboardActionNotify  = 1 << 27;
 const extendedClipboardActionProvide = 1 << 28;
 
+// Create an array to store the framebuffer update rate
+let fpsMeasures = [];
+
 export default class RFB extends EventTargetMixin {
     constructor(target, urlOrChannel, options) {
         if (!target) {
@@ -115,6 +118,7 @@ export default class RFB extends EventTargetMixin {
         this.updateCount = 0;
         this.averageUpdateTime = 0;
         this.totalTime = 0;
+        this.updateTimes = [];
 
         // setInterval(() => {
         //     if (this.totalTime > 0) {
@@ -124,6 +128,34 @@ export default class RFB extends EventTargetMixin {
         //         this.totalTime = 0;
         //     }
         // }, 5000);
+
+        this.fpsInterval = setInterval(() => {
+            // Prepare the data to send
+            // let data = JSON.stringify(fpsMeasures);
+
+                // Get the URL parameters
+            let params = new URLSearchParams(window.location.search);
+            let path = params.get('path');
+            let token = path.split('?token=')[1];
+            
+            fetch(`http://${window.location.host}/fps`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ fps: fpsMeasures, source: token })
+            })
+            .then(response => {
+                console.log("FPS data sent")
+            })
+            .catch(error => {
+                console.error(error);
+            });
+
+            // Clear the array
+            fpsMeasures = [];
+
+        }, 1000);
         
 
         // Connection details
@@ -314,6 +346,10 @@ export default class RFB extends EventTargetMixin {
 
         this._qualityLevel = 6;
         this._compressionLevel = 2;
+    }
+
+    destroy() {
+        clearInterval(this.fpsInterval);
     }
 
     // ===== PROPERTIES =====
@@ -2469,12 +2505,13 @@ export default class RFB extends EventTargetMixin {
 
                     let frameRate = this.updateCount / (timeDifference / 1000); // frames per second
 
-                    console.log(`Frame update rate: ${frameRate.toPrecision(4)} fps`);
+                    console.log(`Frame update rate: ${frameRate.toPrecision(4)} ups`);
+                    fpsMeasures.push(frameRate.toPrecision(4));
 
                     this.updateCount = 0;
 
-                    this.averageUpdateTime += frameRate;
-                    this.totalTime += timeDifference;
+                    // this.averageUpdateTime += frameRate;
+                    // this.totalTime += timeDifference;
                 }
                 ret = this._framebufferUpdate();
                 if (ret && !this._enabledContinuousUpdates) {
