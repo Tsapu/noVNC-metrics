@@ -120,20 +120,12 @@ export default class RFB extends EventTargetMixin {
         this.totalTime = 0;
         this.updateTimes = [];
 
-        // setInterval(() => {
-        //     if (this.totalTime > 0) {
-        //         let averageFrameRate = this.averageUpdateTime / (this.totalTime / 5000);
-        //         console.log(`Average frame update rate (last 5 sec): ${averageFrameRate.toPrecision(4)} fps`);
-        //         this.averageUpdateTime = 0;
-        //         this.totalTime = 0;
-        //     }
-        // }, 5000);
-
         this.fpsInterval = setInterval(() => {
-            // Prepare the data to send
-            // let data = JSON.stringify(fpsMeasures);
 
-                // Get the URL parameters
+            // get the average
+            let avgFps = fpsMeasures.reduce((a, b) => parseFloat(a) + parseFloat(b), 0) / fpsMeasures.length;
+
+            // extract source
             let params = new URLSearchParams(window.location.search);
             let path = params.get('path');
             let token = path.split('?token=')[1];
@@ -143,7 +135,7 @@ export default class RFB extends EventTargetMixin {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ fps: fpsMeasures, source: token })
+                body: JSON.stringify({ fps: avgFps, source: token })
             })
             .then(response => {
                 console.log("FPS data sent")
@@ -2498,21 +2490,23 @@ export default class RFB extends EventTargetMixin {
             case 0:  // FramebufferUpdate
                 this.updateCount++;
 
-                if (this.updateCount >= 100) {
-                    let currentTime = Date.now();
-                    let timeDifference = currentTime - this.lastUpdateTime; // in milliseconds
-                    this.lastUpdateTime = currentTime;
+                // Add the current time to the update times array
+                this.updateTimes.push(Date.now());
 
-                    let frameRate = this.updateCount / (timeDifference / 1000); // frames per second
+                // If we have more than N update times, remove the oldest one
+                if (this.updateTimes.length > 100) {
+                    this.updateTimes.shift();
+                }
+
+                // Calculate the frame rate based on the last N update times (moving average)
+                if (this.updateTimes.length === 100) {
+                    let timeDifference = this.updateTimes[this.updateTimes.length - 1] - this.updateTimes[0];
+                    let frameRate = this.updateTimes.length / (timeDifference / 1000);
 
                     console.log(`Frame update rate: ${frameRate.toPrecision(4)} ups`);
                     fpsMeasures.push(frameRate.toPrecision(4));
-
-                    this.updateCount = 0;
-
-                    // this.averageUpdateTime += frameRate;
-                    // this.totalTime += timeDifference;
                 }
+
                 ret = this._framebufferUpdate();
                 if (ret && !this._enabledContinuousUpdates) {
                     RFB.messages.fbUpdateRequest(this._sock, true, 0, 0,
